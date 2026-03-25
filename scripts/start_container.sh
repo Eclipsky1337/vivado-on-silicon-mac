@@ -6,6 +6,13 @@ script_dir=$(dirname -- "$(readlink -nf $0)";)
 source "$script_dir/header.sh"
 validate_macos
 
+mount_dir=$(readlink -nf "$1")
+if [[ -n "$mount_dir" && ! -d "$mount_dir" ]]
+then
+    f_echo "Mount directory does not exist: $mount_dir"
+    exit 1
+fi
+
 # this is called when the container stops or ctrl+c is hit
 function stop_container {
     docker kill vivado_container > /dev/null 2>&1
@@ -26,7 +33,14 @@ fi
 killall xvcd > /dev/null 2>&1
 
 # run container
-docker run --init --rm --name vivado_container --mount type=bind,source="$script_dir/..",target="/home/user" -p 127.0.0.1:5901:5901 --platform linux/amd64 x64-linux sudo -H -u user bash /home/user/scripts/linux_start.sh &
+docker_mount_args=()
+if [[ -n "$mount_dir" ]]
+then
+    docker_mount_args=(--mount "type=bind,source=$mount_dir,target=/mnt")
+    f_echo "Mounting host directory to /mnt: $mount_dir"
+fi
+
+docker run --init --rm --name vivado_container --mount type=bind,source="$script_dir/..",target="/home/user" "${docker_mount_args[@]}" -p 127.0.0.1:5901:5901 --platform linux/amd64 x64-linux sudo -H -u user bash /home/user/scripts/linux_start.sh &
 f_echo "Started container"
 
 # wait for the container to be ready
